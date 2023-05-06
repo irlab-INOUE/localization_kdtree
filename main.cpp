@@ -7,7 +7,7 @@
 #include "KDTree.h"
 #include "Map.h"
 
-//#define DEBUG_DISPLAY
+#define DEBUG_DISPLAY
 
 struct UrgData {
   std::string type;
@@ -35,11 +35,62 @@ public:
   }
 };
 
+double evaluate(double rx, double ry, double ra, UrgData &data, int skip, MapClass &map, Node *root, cv::Mat &img) {
+  double cs = cos(ra);
+  double sn = sin(ra);
+#ifdef DEBUG_DISPLAY
+  cv::Mat display;
+  img.copyTo(display);
+#endif
+  double dist = 0;
+  for (int i = 0; i < data.dat.size(); i+=skip) {
+    if (data.dat[i] > 35000) continue;
+    double x = data.dat[i] /1000.0 * cos((i * data.step + data.start_angle)*M_PI/180);
+    double y = data.dat[i] /1000.0 * sin((i * data.step + data.start_angle)*M_PI/180);
+
+    // 座標変換
+    double cx = cs * x - sn * y + rx;
+    double cy = sn * x + cs * y + ry;
+
+    // 探索する点
+    Point addPoint(cx, cy);
+    int ax =  addPoint.x / map.csize + map.ORIGIN_X;
+    int ay =-(addPoint.y / map.csize) + map.ORIGIN_Y;
+#ifdef DEBUG_DISPLAY
+    cv::circle(display, cv::Point(ax, ay), 2, cv::Scalar(0, 200, 0), -1, cv::LINE_8);
+#endif
+
+    // 最近傍点探索
+    Node *nns = nearest_neighbor_search_KDTree(addPoint, root, 0);
+    int nx =  nns->pt.x / map.csize + map.ORIGIN_X;
+    int ny =-(nns->pt.y / map.csize) + map.ORIGIN_Y;
+#ifdef DEBUG_DISPLAY
+    cv::circle(display, cv::Point(nx, ny), 4, cv::Scalar(200, 0, 0), -1, cv::LINE_8);
+#endif
+
+    // 点間距離
+    dist += std::hypot(cx - nns->pt.x, cy - nns->pt.y);
+    // 対応点
+#ifdef DEBUG_DISPLAY
+    cv::line(display, cv::Point(ax, ay), cv::Point(nx, ny), cv::Scalar(100, 100, 250), 1, cv::LINE_8);
+#endif
+  }
+  dist /= static_cast<double>(data.dat.size());
+  // ロボット
+#ifdef DEBUG_DISPLAY
+  cv::circle(display, cv::Point(rx/map.csize + map.ORIGIN_X, -ry/map.csize + map.ORIGIN_Y), 
+             0.5/map.csize, cv::Scalar(200, 0, 200), 2);
+  cv::imshow("RESULT", display);
+  cv::waitKey(1);
+#endif
+  return dist;
+}
+
 int main(int argc, char *argv[]) {
-  double xmin = -3.0;
-  double xmax =  3.0;
-  double ymin = -3.0;
-  double ymax =  3.0;
+  double xmin = -5.0;
+  double xmax =  5.0;
+  double ymin = -5.0;
+  double ymax =  5.0;
   double dd = 0.1;
   int skip = 20;        // lidarのスキップ数
 
@@ -101,77 +152,29 @@ int main(int argc, char *argv[]) {
   double best_y = 0.0;
   double best_a = 0.0;
 
-  int separate = (xmax - xmin)/dd;
+  int separate = (xmax - xmin)/dd + 1;
 
-  for (double rx = xmin; rx < xmax; rx += dd) {
-    for (double ry = ymin; ry < ymax; ry += dd) {
+  for (int ix = 0; ix < ((xmax - xmin)/dd + 1); ix++) {
+    double rx = ix * dd + xmin;
+    for (int iy = 0; iy < ((ymax - ymin)/dd + 1); iy++) {
+      double ry = iy * dd + ymin;
       double min_dist_current_pos = 99999;
       double best_x_current_pos;
       double best_y_current_pos;
       double best_a_current_pos;
-
       for (double ra = 0.0; ra < 2*M_PI; ra += 5*2*M_PI/360.0) {
-        double cs = cos(ra);
-        double sn = sin(ra);
-#ifdef DEBUG_DISPLAY
-        cv::Mat display;
-        img.copyTo(display);
-#endif
-        double dist = 0;
-        for (int i = 0; i < data.dat.size(); i+=skip) {
-          if (data.dat[i] > 35000) continue;
-          double x = data.dat[i] /1000.0 * cos((i * data.step + data.start_angle)*M_PI/180);
-          double y = data.dat[i] /1000.0 * sin((i * data.step + data.start_angle)*M_PI/180);
-
-          // 座標変換
-          double cx = cs * x - sn * y + rx;
-          double cy = sn * x + cs * y + ry;
-
-          // 探索する点
-          Point addPoint(cx, cy);
-          int ax =  addPoint.x / map.csize + map.ORIGIN_X;
-          int ay =-(addPoint.y / map.csize) + map.ORIGIN_Y;
-#ifdef DEBUG_DISPLAY
-          cv::circle(display, cv::Point(ax, ay), 2, cv::Scalar(0, 200, 0), -1, cv::LINE_8);
-#endif
-
-          // 最近傍点探索
-          Node *nns = nearest_neighbor_search_KDTree(addPoint, root, depth);
-          int nx =  nns->pt.x / map.csize + map.ORIGIN_X;
-          int ny =-(nns->pt.y / map.csize) + map.ORIGIN_Y;
-#ifdef DEBUG_DISPLAY
-          cv::circle(display, cv::Point(nx, ny), 4, cv::Scalar(200, 0, 0), -1, cv::LINE_8);
-#endif
-
-          // 点間距離
-          dist += std::hypot(cx - nns->pt.x, cy - nns->pt.y);
-          // 対応点
-#ifdef DEBUG_DISPLAY
-          cv::line(display, cv::Point(ax, ay), cv::Point(nx, ny), cv::Scalar(100, 100, 250), 1, cv::LINE_8);
-#endif
-        }
-        dist /= static_cast<double>(data.dat.size());
-        if (min_dist > dist) {
-          min_dist = dist;
-          best_x = rx;
-          best_y = ry;
-        }
-        if (min_dist_current_pos > dist) {
-          min_dist_current_pos = dist;
-          best_x_current_pos = rx;
-          best_y_current_pos = ry;
+        double eval = evaluate(rx, ry, ra, data, skip, map, root, img);
+        if (min_dist_current_pos > eval) {
+          min_dist_current_pos = eval;
           best_a_current_pos = ra;
         }
-        // ロボット
-#ifdef DEBUG_DISPLAY
-        cv::circle(display, cv::Point(rx/map.csize + map.ORIGIN_X, -ry/map.csize + map.ORIGIN_Y), 
-                   0.5/map.csize, cv::Scalar(200, 0, 200), 2);
-        cv::imshow("RESULT", display);
-        cv::waitKey(1);
-#endif
       }
-      match.emplace_back(best_x_current_pos, best_y_current_pos, best_a_current_pos, min_dist_current_pos);
-      std::cout << "Match list: " << match.size() << "\n";
+      match.emplace_back(rx, ry, best_a_current_pos, min_dist_current_pos);
+      if (min_dist > min_dist_current_pos) {
+        min_dist = min_dist_current_pos;
+        best_x = rx;
+        best_y = ry;
+      }
     }
   }
   std::cout << best_x << " " << best_y << "\n";
@@ -192,8 +195,8 @@ int main(int argc, char *argv[]) {
   cv::imshow("BEST", img);
   //cv::waitKey();
 
+  // 評価値の分布をファイルに出力
   int count = 0;
-  //int separate = (xmax - xmin)/dd + 1;
   std::ofstream fout("log");
   for (auto m: match) {
     count++;
