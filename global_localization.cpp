@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
   cv::Mat img_map = cv::imread("../occMap.png");
   map.img2map(img_map, 0.025, 4, 82+50, 322+50);
 
-  std::ifstream fin("../urglog");
+  std::ifstream fin("../urglog_oneshot");
 
   UrgData data;
   fin >> data.type
