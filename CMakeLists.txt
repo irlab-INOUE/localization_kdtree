@@ -10,4 +10,6 @@ link_directories(${PROJECT_SOURCE_DIR})
 find_package (OpenCV REQUIRED)
 
 add_executable (global_localization global_localization.cpp map.cpp)
+add_executable (slam slam.cpp map.cpp)
 target_link_libraries(global_localization ${OpenCV_LIBRARIES})
+target_link_libraries(slam ${OpenCV_LIBRARIES})
