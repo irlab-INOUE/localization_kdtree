@@ -78,16 +78,20 @@ struct GridMap {
     }
 
     origin_x = abs(xmin)/csize;
-    origin_y = abs(ymin)/csize;
+    origin_y = abs(ymax)/csize;
   };
 
   void addPoint(double x, double y) {
     int ix = ( x - xmin)/csize;
-    int iy = (-y - ymin)/csize;
-    if (ix < 0 || ix > width || iy < 0 || iy > height) {
+    int iy = (ymax - y)/csize;
+    if (ix < 0 || ix >= width || iy < 0 || iy >= height) {
       ;
     } else {
-      cell[iy][ix].emplace_back(x, y);
+      if (cell[iy][ix].size() > 0) {
+        ;
+      } else {
+        cell[iy][ix].emplace_back(x, y);
+      }
     }
   };
 
@@ -291,9 +295,9 @@ void draw_robot(cv::Mat &img, double csize, double origin_x, double origin_y, do
 }
 
 int main(int argc, char *argv[]) {
-  GridMap gmap(-10.0, 10.0, -10.0, 10.0, 0.025);
+  GridMap gmap(-10.0, 20.0, -20.0, 5.0, 0.025);
   // 最初の計測を地図に登録
-  std::ifstream fin("../urglog");
+  std::ifstream fin("../urglog3");
 
   double current_x = 0;
   double current_y = 0;
